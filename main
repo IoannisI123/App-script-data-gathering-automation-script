@@ -1,0 +1,130 @@
+// Accessing the Data 
+
+var wb = SpreadsheetApp.getActiveSpreadsheet();
+  var metricsSheet = wb.getSheetByName("Google Ads Metrics");
+  var conversionsSheet = wb.getSheetByName("Google Ads Conversions");
+  var finalDatasetSheet = wb.getSheetByName("Final Dataset");
+
+
+function consolidateData() {
+    var metricsData = metricsSheet.getRange(2, 1, metricsSheet.getLastRow() - 1, metricsSheet.getLastColumn()).getValues();
+    var conversionsData = conversionsSheet.getRange(2, 1, conversionsSheet.getLastRow(), conversionsSheet.getLastColumn()).getValues();
+
+    var consolidatedMetricsData = {};
+    var consolidatedConversionsData = {};
+
+    for (var i = 0; i < metricsData.length; i++) {
+        var date = metricsData[i][0];
+        var campaign = metricsData[i][1];
+        var adGroup = metricsData[i][2];
+
+        if (!consolidatedMetricsData[date]) {
+            consolidatedMetricsData[date] = {};
+        }
+        if (!consolidatedMetricsData[date][campaign]) {
+            consolidatedMetricsData[date][campaign] = {};
+        }
+        if (!consolidatedMetricsData[date][campaign][adGroup]) {
+            consolidatedMetricsData[date][campaign][adGroup] = {   
+                impressions: 0,
+                clicks: 0,
+                cost: 0
+            };
+        }
+
+        consolidatedMetricsData[date][campaign][adGroup].impressions += parseInt(metricsData[i][3]);
+        consolidatedMetricsData[date][campaign][adGroup].clicks += parseInt(metricsData[i][4]);
+        consolidatedMetricsData[date][campaign][adGroup].cost += parseFloat(metricsData[i][5]);
+
+        
+    }
+
+    for (var j = 0; j < conversionsData.length; j++) {
+        var conversionDate = conversionsData[j][0];
+        var conversionCampaign = conversionsData[j][1];
+        var conversionAdGroup = conversionsData[j][2];
+         var conversionType = conversionsData[j][3];
+
+        if (!consolidatedConversionsData[conversionDate]) {
+            consolidatedConversionsData[conversionDate] = {};
+        }
+        if (!consolidatedConversionsData[conversionDate][conversionCampaign]) {
+            consolidatedConversionsData[conversionDate][conversionCampaign] = {};
+        }
+        if (!consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup]) {
+            consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup] = {
+               addToCart:0,
+                purchase:0,
+                totalConversionValueAdToCart:0,
+                totalConversionValuePurchase:0,
+                revenue:0,
+                costPerAddCart:0,
+                costPerPurchase:0,
+                roas:0,
+              
+
+            };     
+        }
+       
+       if(conversionType === "Add To Cart"){
+        consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].addToCart += parseFloat(conversionsData[j][4]);
+        consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].totalConversionValueAdToCart += parseFloat(conversionsData[j][5]);
+          
+      } else if(conversionType === "Purchase"){
+        consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].purchase += parseFloat(conversionsData[j][4]);
+        consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].totalConversionValuePurchase += parseFloat(conversionsData[j][5]);
+        
+
+      } else if(conversionType === "Product View"){
+     consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].purchase += 0;
+        consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].totalConversionValuePurchase +=0;
+      }
+    }
+
+   var finalData = [];
+for (var date in consolidatedMetricsData) {
+    for (var campaign in consolidatedMetricsData[date]) {
+        for (var adGroup in consolidatedMetricsData[date][campaign]) {
+            var impressions = consolidatedMetricsData[date][campaign][adGroup].impressions;
+            var clicks = consolidatedMetricsData[date][campaign][adGroup].clicks;
+            var cost = consolidatedMetricsData[date][campaign][adGroup].cost;
+
+            for (var conversionDate in consolidatedConversionsData) {
+                for (var conversionCampaign in consolidatedConversionsData[conversionDate]) {
+                    for (var conversionAdGroup in consolidatedConversionsData[conversionDate][conversionCampaign]) {
+                        if (conversionDate == date && conversionCampaign == campaign && conversionAdGroup == adGroup) {
+                             var addToCartConversions = consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].addToCart;
+                                var purchaseConversions = consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].purchase;
+                                var totalConversionValueAdToCart = consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].totalConversionValueAdToCart;
+                                var totalConversionValuePurchase = consolidatedConversionsData[conversionDate][conversionCampaign][conversionAdGroup].totalConversionValuePurchase;
+                                var costPerAddCart =  Number(cost) / Number(addToCartConversions);
+                                var costPerPurchase = Number(cost) / Number(purchaseConversions);
+                                var roas = Number(totalConversionValuePurchase) / Number(cost);
+                               if(addToCartConversions == 0) {
+                                costPerAddCart = 0;
+                               }
+
+                                if(purchaseConversions === 0){
+                                
+                                  var costPerPurchase = 0;
+                                var roas = 0;
+                                }
+
+                            finalData.push([date, campaign, adGroup, impressions, clicks, cost,addToCartConversions,purchaseConversions, costPerAddCart, costPerPurchase, roas]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+    finalDatasetSheet.clear();
+    var headerRange = finalDatasetSheet.getRange(1, 1, 1, finalData[0].length);
+    headerRange.setValues([["Date", "Campaign", "Ad Group", "Impressions", "Clicks", "Cost","Add to Carts", "Purchases", "Cost Per Add To Cart", "Cost Per Purchase", "Roas" ]]);
+    headerRange.setFontWeight("bold");
+    headerRange.setFontColor("#000000"); 
+    headerRange.setBackground("#D3A923");
+
+    finalDatasetSheet.getRange(2, 1, finalData.length, finalData[0].length).setValues(finalData);
+}
+
